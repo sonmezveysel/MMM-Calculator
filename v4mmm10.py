@@ -22,7 +22,7 @@ def load_trained_model():
 
 mmm_model = load_trained_model()
 
-# PAGE 1: Budget Input & Randomization
+# PAGE 1: Budget Input & Randomizationstrea
 def page_budget_input():
     st.title("📊 Media Mix Modeling - Impact Calculator")
     offline_budget = st.slider("💰 Offline Budget (TV, Radio, OOH)", 100000, 10000000, 5000000, 50000)
@@ -109,12 +109,12 @@ def page_forecast():
     ax.set_ylim(0, 100)
     ax.set_xlabel("Week")
     ax.set_ylabel("Revenue Index (0-100)")
-    ax.set_title("Predicted Revenue Over the Last 12 Weeks")
+    ax.set_title("Predicted Revenue Over 12 Weeks")
 
     st.pyplot(fig)   
 
     # 📊 Bar Chart for Baseline vs. Predicted Revenue
-    st.subheader("📊 Baseline vs. Predicted Revenue Over 12 Weeks")
+    st.subheader("📊 Baseline vs. Predicted Revenue 12 Weeks")
 
     baseline_revenue = weekly_data["Predicted_Revenue"].iloc[-24:-12].sum()  # Baseline from prior 12 weeks
     predicted_revenue = weekly_data["Predicted_Revenue"].iloc[-12:].sum()  # Model Prediction for last 12 weeks

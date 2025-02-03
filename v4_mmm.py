@@ -13,39 +13,49 @@ st.set_page_config(page_title="Media Mix Modeling: Impact Calculator", layout="w
 @st.cache_resource
 def load_trained_model():
     model = xgb.Booster()
-    try:
-        model.load_model("optimized_mmm_xgboost_model.json")
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None
+    model.load_model("optimized_mmm_xgboost_model.json")
     return model
 
 mmm_model = load_trained_model()
 
-# PAGE 1: Budget Input & Randomization
+# ------------------------------------------
+# 🎯 PAGE 1: Budget Input & Randomization
+# ------------------------------------------
 def page_budget_input():
     st.title("📊 Media Mix Modeling - Impact Calculator")
-    offline_budget = st.slider("💰 Offline Budget (TV, Radio, OOH)", 100000, 10000000, 5000000, 50000)
-    online_budget = st.slider("💻 Online Budget", 100000, 10000000, 5000000, 50000)
-    search_budget_pct = st.slider("🔍 % of Online Budget to Search", 0, 100, 50)
-    tv_budget_pct = st.slider("📺 % of Offline Budget to TV", 0, 100, 60)
 
+    # User Inputs for Monthly Budgets
+    offline_budget = st.slider("💰 Offline Budget (TV, Radio, OOH)", min_value=100000, max_value=10000000, value=5000000, step=50000)
+    online_budget = st.slider("💻 Online Budget (Search, Display, Video, Digital Audio, Social)", min_value=100000, max_value=10000000, value=5000000, step=50000)
+
+    # User Inputs for Search & TV Allocation
+    search_budget_pct = st.slider("🔍 % of Online Budget Allocated to Search", min_value=0, max_value=100, value=50)
+    tv_budget_pct = st.slider("📺 % of Offline Budget Allocated to TV", min_value=0, max_value=100, value=60)
+
+    # Budget Allocation with Limited Randomization
     def allocate_remaining_budget(total_budget, fixed_allocation, num_channels):
         remaining_budget = total_budget - fixed_allocation
-        return np.random.dirichlet(np.ones(num_channels)) * remaining_budget
+        random_distribution = np.random.dirichlet(np.ones(num_channels)) * remaining_budget
+        return random_distribution
 
-    np.random.seed(42)  # Reproducibility
     weeks = 52
+    np.random.seed(42)  # Ensures reproducibility
+
+    # Allocate TV & Search Spend First
     tv_spend = (tv_budget_pct / 100) * offline_budget
     search_spend = (search_budget_pct / 100) * online_budget
 
-    # Allocate Remaining Budgets
-    remaining_offline_allocation = allocate_remaining_budget(offline_budget, tv_spend, 2)
-    remaining_online_allocation = allocate_remaining_budget(online_budget, search_spend, 4)
+    # Allocate the Remaining Budgets Randomly
+    remaining_offline_allocation = allocate_remaining_budget(offline_budget, tv_spend, 2)  # Radio, OOH
+    remaining_online_allocation = allocate_remaining_budget(online_budget, search_spend, 4)  # Social, Display, Video, Digital Audio
 
+    # Assign Values to Offline Channels
     offline_allocation = np.array([tv_spend] + list(remaining_offline_allocation))
+
+    # Assign Values to Online Channels
     online_allocation = np.array([search_spend] + list(remaining_online_allocation))
 
+    # Create Weekly DataFrame
     weekly_data = pd.DataFrame({
         "Week": range(1, weeks + 1),
         "TV_Spend_Adstock": np.random.dirichlet(np.ones(weeks), size=1)[0] * offline_allocation[0],
@@ -59,14 +69,16 @@ def page_budget_input():
     })
 
     st.session_state.weekly_data = weekly_data
-    st.success("✅ Budget Distributed! Move to 'What If' Tab for Predictions.")
+    st.success("✅ Budget Distributed! Move to Page 2 for Model Predictions.")
 
-# PAGE 2: Forecast Revenue Using MMM Model
+# ------------------------------------------
+# 🎯 PAGE 2: Predict Revenue Using MMM Model
+# ------------------------------------------
 def page_forecast():
     st.title("📈 MMM Model Predictions & Analysis")
     
     if "weekly_data" not in st.session_state:
-        st.warning("⚠️ Please enter your budget first in the 'Input' Tab!")
+        st.warning("⚠️ Please go back to Page 1 and enter your budget first!")
         return
 
     weekly_data = st.session_state.weekly_data
@@ -87,14 +99,13 @@ def page_forecast():
 
     model_input_data = weekly_data[spend_factors + macro_factors]
     X_test_dmatrix = xgb.DMatrix(model_input_data)
-    
     weekly_data["Predicted_Revenue"] = mmm_model.predict(X_test_dmatrix)
 
-    # Normalize Predicted Revenue (Index 0-100)
+    # Normalize Predicted Revenue (Index between 0 and 100)
     scaler = MinMaxScaler(feature_range=(0, 100))
     weekly_data["Predicted_Revenue"] = scaler.fit_transform(weekly_data[["Predicted_Revenue"]])
 
-    # 📈 Revenue Trend Graph (Last 12 Weeks)
+    # 📈 Predicted Revenue Trend Graph (Fully Indexed 0-100, Seaborn Styled)
     st.subheader("📈 12 Week Predicted Revenue Trend")
 
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -112,33 +123,13 @@ def page_forecast():
     ax.set_title("Predicted Revenue Over the Last 12 Weeks")
 
     st.pyplot(fig)   
-
-    # 📊 Bar Chart for Baseline vs. Predicted Revenue
-    st.subheader("📊 Baseline vs. Predicted Revenue Over 12 Weeks")
-
-    baseline_revenue = weekly_data["Predicted_Revenue"].iloc[-24:-12].sum()  # Baseline from prior 12 weeks
-    predicted_revenue = weekly_data["Predicted_Revenue"].iloc[-12:].sum()  # Model Prediction for last 12 weeks
-
-    fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-    ax_bar.bar(["Baseline Revenue", "Predicted Revenue"], [baseline_revenue, predicted_revenue], color=["gray", "blue"])
     
-    ax_bar.set_ylabel("Total Revenue (Indexed)")
-    ax_bar.set_title("Comparison of Baseline vs. Predicted Revenue")
 
-    # Display the bar chart
-    st.pyplot(fig_bar)
+# 🚀 STREAMLIT APP NAVIGATION
+st.sidebar.title("📌 Menu")
+page = st.sidebar.radio("Go to:", ["Budget Input", "Forecast"])
+if page == "Budget Input":
+    page_budget_input()
+else:
+    page_forecast()
 
-# 🚀 Streamlit App Navigation with Tabs
-def budget_app():
-    st.title("MMM: What If Scenarios")
-    tab1, tab2 = st.tabs(["📊 Input", "📈 What If"])
-    
-    with tab1:
-        page_budget_input()
-        
-    with tab2:
-        page_forecast()
-
-# Run the Streamlit App
-if __name__ == "__main__":
-    budget_app()

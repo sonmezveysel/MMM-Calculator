@@ -65,6 +65,22 @@ def page_budget_input():
 def page_forecast():
     st.title("📈 MMM Model Predictions & Analysis")
     
+   # Load actual revenue from CSV file
+    actual_data = pd.read_csv("wll.csv")
+
+    # Ensure the 'Week' field exists and matches the structure
+    if "Week" in actual_data.columns and "Revenue" in actual_data.columns:
+        # Merge actual revenue with existing weekly_data
+        weekly_data = weekly_data.merge(actual_data[["Week", "Revenue"]], on="Week", how="left")
+
+    # Ensure last 12 weeks of actual revenue exist
+    actual_revenue = weekly_data["Revenue"].iloc[-12:].values
+    else:
+        st.error("Error: 'weekly_data.csv' must contain 'Week' and 'Revenue' columns.")
+        return
+
+    ###
+
     if "weekly_data" not in st.session_state:
         st.warning("⚠️ Please enter your budget first in the 'Input' Tab!")
         return

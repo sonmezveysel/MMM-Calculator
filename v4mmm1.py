@@ -113,21 +113,6 @@ def page_forecast():
 
     st.pyplot(fig)   
 
-    # 📊 Bar Chart for Baseline vs. Predicted Revenue
-    st.subheader("📊 Baseline vs. Predicted Revenue Over 12 Weeks")
-
-    baseline_revenue = weekly_data["Predicted_Revenue"].iloc[-24:-12].sum()  # Baseline from prior 12 weeks
-    predicted_revenue = weekly_data["Predicted_Revenue"].iloc[-12:].sum()  # Model Prediction for last 12 weeks
-
-    fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-    ax_bar.bar(["Baseline Revenue", "Predicted Revenue"], [baseline_revenue, predicted_revenue], color=["gray", "blue"])
-    
-    ax_bar.set_ylabel("Total Revenue (Indexed)")
-    ax_bar.set_title("Comparison of Baseline vs. Predicted Revenue")
-
-    # Display the bar chart
-    st.pyplot(fig_bar)
-
 # 🚀 Streamlit App Navigation with Tabs
 def budget_app():
     st.title("MMM: What If Scenarios")

@@ -20,10 +20,23 @@ def load_trained_model():
         return None
     return model
 
+# Load Weekly Revenue Data
+@st.cache_resource
+def load_weekly_revenue():
+    try: 
+        revenue = pd.read_csv("wll.csv")
+        print("I am loading the data wll.csv")
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
+    return revenue 
+
 mmm_model = load_trained_model()
+revenue = load_weekly_revenue()
 
 # PAGE 1: Budget Input & Randomization
 def page_budget_input():
+#    print("we are inside the page budget input")
     st.title("📊 Media Mix Modeling - Impact Calculator")
     offline_budget = st.slider("💰 Offline Budget (TV, Radio, OOH)", 100000, 10000000, 5000000, 50000)
     online_budget = st.slider("💻 Online Budget", 100000, 10000000, 5000000, 50000)
@@ -38,6 +51,8 @@ def page_budget_input():
     weeks = 52
     tv_spend = (tv_budget_pct / 100) * offline_budget
     search_spend = (search_budget_pct / 100) * online_budget
+    
+    #print(f"TV Spend {tv_spend} and Search Spend {search_spend}")
 
     # Allocate Remaining Budgets
     remaining_offline_allocation = allocate_remaining_budget(offline_budget, tv_spend, 2)
@@ -57,12 +72,17 @@ def page_budget_input():
         "Video_Spend_Adstock": np.random.dirichlet(np.ones(weeks), size=1)[0] * online_allocation[3],
         "Digital_Audio_Spend_Adstock": np.random.dirichlet(np.ones(weeks), size=1)[0] * online_allocation[4],
     })
+    
+   # print("this is the weekly data after the allocation")
+   # print(weekly_data)
 
     st.session_state.weekly_data = weekly_data
+ #   print(st.session_state.weekly_data)
     st.success("✅ Budget Distributed! Move to 'What If' Tab for Predictions.")
 
 # PAGE 2: Forecast Revenue Using MMM Model
 def page_forecast():
+    print("We are inside the function")
     st.title("📈 MMM Model Predictions & Analysis")
     
     if "weekly_data" not in st.session_state:
@@ -70,22 +90,29 @@ def page_forecast():
         return
 
     weekly_data = st.session_state.weekly_data
+   #  print("lets print the weekly data")
+   #  print(weekly_data)
 
-    spend_factors = [
-        "Search_Spend_Adstock", "Display_Spend_Adstock", "Video_Spend_Adstock",
-        "Social_Spend_Adstock", "Digital_Audio_Spend_Adstock",
-        "TV_Spend_Adstock", "Radio_Spend_Adstock", "OOH_Spend_Adstock"
-    ]
 
     # Generate random macroeconomic factors
     weekly_data["Inflation_Rate"] = np.random.uniform(2, 8, len(weekly_data))
     weekly_data["Consumer_Index"] = np.random.uniform(100, 120, len(weekly_data))
     weekly_data["Gross_Rating_Point"] = np.random.uniform(40, 220, len(weekly_data))
     weekly_data["CTR_Scaled"] = np.random.uniform(1, 40, len(weekly_data))
+    
+    print(weekly_data.columns)
 
     macro_factors = ["Consumer_Index", "Inflation_Rate", "Gross_Rating_Point", "CTR_Scaled"]
+    
+ # FIX: Ensure correct feature order matches model expectations
+    feature_order = [
+        "Consumer_Index", "Inflation_Rate", "Gross_Rating_Point", "CTR_Scaled", 
+        "TV_Spend_Adstock", "Radio_Spend_Adstock", "OOH_Spend_Adstock", "Search_Spend_Adstock", 
+        "Social_Spend_Adstock", "Display_Spend_Adstock", "Video_Spend_Adstock", "Digital_Audio_Spend_Adstock"
+    ]
 
-    model_input_data = weekly_data[spend_factors + macro_factors]
+    model_input_data = weekly_data[feature_order]
+    print(model_input_data.columns)
     X_test_dmatrix = xgb.DMatrix(model_input_data)
     
     weekly_data["Predicted_Revenue"] = mmm_model.predict(X_test_dmatrix)
@@ -105,6 +132,12 @@ def page_forecast():
         y=weekly_data["Predicted_Revenue"].iloc[-12:], 
         marker="o", linewidth=2.5, color="royalblue", ax=ax
     )
+    
+    sns.lineplot(
+        x=weekly_data["Week"].iloc[-12:], 
+        y=revenue["Revenue"].iloc[-12:], 
+        marker="x", linewidth=2.5, color="red", ax=ax
+    )
 
     ax.set_ylim(0, 100)
     ax.set_xlabel("Week")
@@ -116,7 +149,7 @@ def page_forecast():
     # 📊 Bar Chart for Baseline vs. Predicted Revenue
     st.subheader("📊 Baseline vs. Predicted Revenue Over 12 Weeks")
 
-    baseline_revenue = weekly_data["Predicted_Revenue"].iloc[-24:-12].sum()  # Baseline from prior 12 weeks
+    baseline_revenue = revenue["Revenue"].iloc[-24:-12].sum()  # Baseline from prior 12 weeks
     predicted_revenue = weekly_data["Predicted_Revenue"].iloc[-12:].sum()  # Model Prediction for last 12 weeks
 
     fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
@@ -142,3 +175,4 @@ def budget_app():
 # Run the Streamlit App
 if __name__ == "__main__":
     budget_app()
+    
